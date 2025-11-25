@@ -1,0 +1,117 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.special import jv, kv # Bessel J et K
+from scipy.optimize import root_scalar # Ajout de la fonction de recherche de racines
+
+## --- Paramètres du Problème ---
+n1 = 1.53
+n2 = 1.50
+a  = 4.5e-6
+lambda_ = 1500e-9
+
+k0 = 2*np.pi/lambda_
+V = a*k0*np.sqrt(n1**2 - n2**2)
+print(f"V = {V:.4f} (Fréquence normalisée)")
+
+m = 1 # Indice azimutal
+
+## --- Calcul des Fonctions de Bessel ---
+
+# La recherche de racines est limitée à 0 < x < V,
+# où V est le point de coupure de RHS.
+x_max = V * 0.999 # On s'approche de V mais sans l'atteindre (pour éviter les divisions par zéro à V)
+x = np.linspace(1e-3, x_max, 5000) # Augmentation du nombre de points pour plus de précision
+
+# On doit gérer la division par zéro lorsque jv(m, x) est nul (zéros de J_m)
+# Ces zéros correspondent à des pôles du LHS (discontinuités).
+# Pour m=0, le premier zéro de J0 est à x ~ 2.404.
+
+def characteristic_equation(x_val, m, V, n1, n2, a):
+    """
+    Définit la fonction f(x) = LHS - RHS pour laquelle nous cherchons les racines.
+    """
+    # Calcul de qa, q est réel seulement si x <= V
+    if x_val >= V:
+        # En dehors de la zone guidée, la différence est très grande/non définie
+        return np.inf 
+    
+    qa_val = np.sqrt(V**2 - x_val**2)
+
+    # Membre de Gauche (LHS)
+    # Jv(m, x) peut être très proche de zéro -> gérer la division par zéro
+    Jm_x = jv(m, x_val)
+    if np.abs(Jm_x) < 1e-12: # Pôle de LHS
+        return np.inf
+
+    LHS_val = jv(m - 1, x_val) / (x_val * Jm_x)
+
+    # Membre de Droite (RHS)
+    # Kv(m, qa) n'est jamais nul pour qa > 0, mais qa = 0 à x = V.
+    Kvm_qa = kv(m, qa_val)
+    
+    if np.abs(Kvm_qa) < 1e-12 or qa_val < 1e-12: # Près du point de coupure
+         return np.inf
+        
+    RHS_val = kv(m - 1, qa_val) / (qa_val * Kvm_qa)
+
+    return LHS_val - RHS_val
+
+## --- Recherche des Intersections (Racines) ---
+
+# Calcul de la différence sur le maillage 'x' pour l'analyse
+f_diff = np.array([characteristic_equation(val, m, V, n1, n2, a) for val in x])
+
+roots_x = []
+# Détecter les changements de signe (les racines)
+for i in range(len(x) - 1):
+    # On cherche les changements de signe de f_diff, en ignorant les pôles (où f_diff est inf ou très grand)
+    if (f_diff[i] * f_diff[i+1] < 0) and (np.abs(f_diff[i]) < 100 and np.abs(f_diff[i+1]) < 100):
+        
+        a_root = x[i]
+        b_root = x[i+1]
+        
+        try:
+            # Utiliser root_scalar pour affiner la racine dans l'intervalle [a_root, b_root]
+            # La méthode 'brentq' est robuste si l'on est sûr qu'il n'y a qu'une seule racine
+            # dans l'intervalle.
+            root_result = root_scalar(characteristic_equation, args=(m, V, n1, n2, a), bracket=[a_root, b_root], method='brentq')
+            
+            # Vérifier si la racine n'est pas déjà trouvée (pour m=0, il peut y avoir des racines très proches)
+            if root_result.converged and all(np.abs(root_result.root - r) > 1e-4 for r in roots_x):
+                 roots_x.append(root_result.root)
+                 
+        except ValueError:
+            # Peut arriver si un pôle est dans l'intervalle
+            pass
+        
+print("\n--- Résultats des Modes LP ---")
+if roots_x:
+    # Trier et formater les résultats
+    roots_x.sort()
+    for l, root in enumerate(roots_x):
+        print(f"Mode LP_{m},{l+1} (Intersection): x = pa = {root:.4f}")
+else:
+    print("Aucune intersection (mode guidé) trouvée pour m={m} dans la plage de V.")
+
+## --- Plot des courbes (Optionnel pour vérification) ---
+LHS_plot = jv(m - 1, x) / (x * jv(m, x))
+qa_plot = np.sqrt(V**2 - x**2)
+RHS_plot = kv(m - 1, qa_plot) / (qa_plot * kv(m, qa_plot))
+
+plt.figure(figsize=(7, 5))
+plt.plot(x, LHS_plot, label="LHS", color='blue')
+plt.plot(x, RHS_plot, label="RHS", color='orange')
+plt.axhline(0, color="gray", lw=0.7)
+plt.axvline(V, color="red", linestyle='--', label=f"Coupure V={V:.4f}") # Ajout de la ligne de coupure V
+
+# Marquer les racines trouvées
+for root in roots_x:
+    plt.plot(root, 0, 'go', markersize=5)
+    plt.axvline(root, color='green', linestyle=':', lw=0.8)
+
+plt.xlabel("x = p·a")
+plt.title(f"Équation Caractéristique (m={m}) et Modes Guidés")
+plt.ylim(-2, 2)
+plt.legend()
+plt.grid(True, which='both', linestyle='--')
+plt.show()
