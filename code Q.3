@@ -1,0 +1,40 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.special import jv, kv  # Bessel J et K
+
+
+n1 = 1.53
+n2 = 1.50
+a  = 4.5e-6            
+lambda_ = 1500e-9      
+
+k0 = 2*np.pi/lambda_
+V = a*k0*np.sqrt(n1**2 - n2**2)
+print("V =", V)
+
+
+m = 2  # change manually
+
+
+x = np.linspace(1e-6, 14, 2000)  # 0<pa<V
+p = x / a
+qa = np.sqrt(V**2 - x**2)
+q=qa/a
+
+
+LHS = jv(m-1, x) / (x * jv(m, x))
+
+RHS = kv(m-1, qa) / (qa * kv(m, qa)) 
+
+#plot 
+
+plt.figure(figsize=(7,5))
+plt.plot(x, LHS, label="LHS")
+plt.plot(x, RHS, label="RHS")
+plt.axhline(0, color="gray", lw=0.7)
+plt.xlabel("x = p·a")
+plt.title("characteristic equation")
+plt.ylim(-2, 2)
+plt.legend()
+plt.grid()
+plt.show()
