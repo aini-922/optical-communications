@@ -1,0 +1,133 @@
+#Question 7 
+import numpy as np
+from scipy.special import jv, kv, jn_zeros
+from scipy.optimize import brentq
+
+# Fiber Parameters 
+n1 = 1.53
+n2 = 1.50
+a = 4.5e-6        
+lambda_0 = 1500e-9 
+c = 3e8   
+k0 = 2 * np.pi / lambda_0
+V_center = a * k0 * np.sqrt(n1**2 - n2**2)
+print(f"Calculated V-parameter (at {lambda_0*1e9:.0f} nm): V = {V_center:.4f}\n")
+
+# Mode LP_12
+l = 1 
+j = 2 
+
+# Characteristic Equation (LP1j modes)
+
+def characteristic_equation(x, V):
+    """
+    Here x = pa.
+    Since the arguments of the Bessel function must be real hence: qa = sqrt(V^2 - x^2) > 0.
+    """
+    qa_sq = V**2 - x**2
+    
+    # Checking if in the guided region
+    if qa_sq <= 0:
+        return np.inf 
+    
+    qa = np.sqrt(qa_sq)
+    
+    # Solving for roots
+    # LHS: J(l-1, x) / (x*J(l, x)) -> J(0, x) / (x*J(1, x))
+    # RHS: K(l-1, qa) / (qa*K(l, qa)) -> K(0, qa) / (qa*K(1, qa))
+    if x == 0:
+        return np.inf
+
+    LHS = jv(l - 1, x) / (x * jv(l, x))
+    RHS = kv(l - 1, qa) / (qa * kv(l, qa))
+    
+    return LHS - RHS
+
+
+# Calculating the effective index calculation
+
+def calculate_neff(lambda_val, x_root):
+    k0_val = 2 * np.pi / lambda_val
+    p = x_root / a
+    beta_sq = (n1 * k0_val)**2 - p**2
+    
+    # For an ideal solution, beta_sq is positive
+    if beta_sq < 0:
+        print("Warning: beta_sq is negative, mode is beyond cutoff.")
+        return n2
+        
+    beta = np.sqrt(beta_sq)
+    
+    # Calculating effective index
+    neff = beta / k0_val
+    return neff
+
+# Root Finding for the LP_12 Mode 
+
+def find_lp12_root(lambda_val):
+    V = a * (2 * np.pi / lambda_val) * np.sqrt(n1**2 - n2**2)
+    
+    # The first zero of J_1 is at 3.8317
+    x_lower_bound = 3.8317 # This is the cut-off of LP21/LP02/LP12 group
+    x_upper_bound = V - 1e-4 # Must be less than V for a guided mode
+
+    try:
+        root = brentq(lambda x: characteristic_equation(x, V), 3.9, 5.0)
+    except ValueError:
+        # Fallback search between cutoff and V
+        try:
+             root = brentq(lambda x: characteristic_equation(x, V), x_lower_bound + 1e-3, x_upper_bound)
+        except ValueError:
+             print(f"Could not find LP12 root at lambda={lambda_val*1e9:.1f} nm.")
+             return None
+
+    print(f"Found LP12 root at λ={lambda_val*1e9:.2f} nm: x = {root:.10f}")
+
+    return root
+
+# Main Dispersion Calculation 
+
+def calculate_waveguide_dispersion(lambda_0, delta_lambda=1e-9):
+    lambda_1 = lambda_0 - delta_lambda
+    lambda_2 = lambda_0 + delta_lambda
+    
+    wavelengths = [lambda_1, lambda_0, lambda_2]
+    neff_values = []
+    
+    for l_val in wavelengths:
+        # Finding the root (pa) for LP_12 at this wavelength
+        pa_root = find_lp12_root(l_val)
+        
+        if pa_root is None:
+            return np.nan
+        
+        # Calculating the effective index neff
+        neff = calculate_neff(l_val, pa_root)
+        neff_values.append(neff)
+        
+        print(f"λ = {l_val*1e9:.1f} nm, pa = {pa_root:.5f}, neff = {neff:.6f}")
+
+    neff_m1, neff_0, neff_p1 = neff_values
+    
+    # Calculating the second derivative [d^2(neff)/dλ^2]_W
+    d2_neff_dlambda2 = (neff_p1 - 2 * neff_0 + neff_m1) / (delta_lambda**2)
+    
+    print(f"\n[d²(neff)/dλ²]_W = {d2_neff_dlambda2:.2e} m⁻²")
+    
+    #Calculating Dw
+    Dw_s_per_m2 = - (lambda_0 / c) * d2_neff_dlambda2 # D_w = - (λ / c) * [d^2(neff)/dλ^2]_W
+    
+    # Converting to standard units: ps/(nm*km)
+    Dw_ps_per_nm_km = Dw_s_per_m2 * 1e3 
+    
+    return Dw_ps_per_nm_km
+
+# Final result
+
+Dw_result = calculate_waveguide_dispersion(lambda_0)
+
+print("------------------------------------------")
+if not np.isnan(Dw_result):
+    print(f"Waveguide Dispersion (LP_12): D_w = {Dw_result:.10f} ps/(nm·km)")
+else:
+    print("Dispersion calculation failed due to root-finding error.")
