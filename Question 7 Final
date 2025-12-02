@@ -87,7 +87,7 @@ def find_lp12_root(lambda_val):
 
 # Main Dispersion Calculation 
 
-def calculate_waveguide_dispersion(lambda_0, delta_lambda=1e-9):
+def calculate_waveguide_dispersion(lambda_0, delta_lambda=0.1e-9):
     lambda_1 = lambda_0 - delta_lambda
     lambda_2 = lambda_0 + delta_lambda
     
