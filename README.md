@@ -1,3 +1,5 @@
 # optical-communications
 optical project due- 8th Dec 
-AAAA
+
+- remember to comment on all codes
+- almost finished....
