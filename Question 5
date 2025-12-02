@@ -1,0 +1,105 @@
+#QUESTION 5
+import numpy as np 
+import matplotlib.pyplot as plt 
+from scipy.special import jv, kv 
+
+n_1 = 1.53 
+n_2 = 1.5 
+a = 4.5e-6 # radius in meters
+lambda_0 = 1500e-9 # wavelength in meters
+
+k_0 = 2 * np.pi / lambda_0
+V = k_0 * a * np.sqrt(n_1**2 - n_2**2) 
+
+#Using the value calculated before to calculate the value of 'p' 
+p = 4.5809 / a
+print (p, 'is p in 1/m')
+beta = np.sqrt((n_1 * k_0)**2 - p**2) #determining the a more precise value of beta
+q = np.sqrt(beta**2 - (k_0*n_2)**2)
+print('this is', beta/k_0)
+
+# Creating the grid for the plots 
+x = np.linspace(-a, a, 200) #creating a range for x and y values with a large interval of spacing
+y = np.linspace(-a, a, 200)
+X, Y = np.meshgrid(x, y)
+
+r = np.sqrt(X**2 + Y**2) #from cartesian to polar coordinates
+phi = np.arctan2(Y, X)
+
+#Finding B by setting A = 1
+A = 1
+l = 1 # doing LP_12 mode 
+B = A * jv(l, p*a) / kv(l, q*a)
+
+# Computing the y-polarisation field components
+E_x = np.zeros_like(r, dtype=np.complex128) 
+E_y = np.zeros_like(r, dtype=np.complex128) #this creates an array which sets its values to zero acknowledging that the values will be complex and that the array size has to be the same size as the r-array
+E_z = np.zeros_like(r, dtype=np.complex128)
+
+# Core region
+core = r < a
+E_x[core] = 0 
+E_y[core] = A * jv(l, p*r[core]) * np.cos(l * phi[core]) #lobe structure
+E_z[core] = (p/beta) * (1/2) * ((jv(l+1, p*r[core]) * np.exp(1j*phi[core])) + (jv(l-1, p*r[core]) * np.exp(-1j*phi[core]))) #weak field
+
+# Cladding region
+clad = r >= a
+E_y[clad] = B * kv(l, q*r[clad]) * np.cos(l * phi[clad])#lobe structure
+E_x[clad] = 0 
+E_z[clad] = (q/beta) * (1/2) * ((kv(l+1, q*r[clad]) * np.exp(1j*phi[clad])) - (kv(l-1, q*r[clad]) * np.exp(-1j*phi[clad])))#weak field 
+
+# Normalising the intensity scales for each field to easily compare each field component
+Ex_norm = np.abs(E_x) / np.max(np.abs(E_x))
+Ey_norm = np.abs(E_y) / np.max(np.abs(E_y))
+Ez_norm = np.abs(E_z) / np.max(np.abs(E_z))
+
+
+#plots
+plt.figure(figsize=(6,5))
+plt.pcolor(X*1e6, Y*1e6, Ey_norm, shading='auto')
+plt.colorbar(label='|E_y|')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title(' |E_y| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(6,5))
+plt.pcolor(X * 1e6, Y * 1e6, Ez_norm, shading='auto')
+plt.colorbar(label='|E_z|')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title('|E_z| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+
+
+E_x = np.zeros_like(r, dtype=np.complex128) 
+
+
+# Core region
+core = r < a
+
+E_x[core] = A * jv(l, p*r[core]) * np.sin(l * phi[core]) 
+
+# Cladding region
+clad = r >= a
+E_x[clad] = B * kv(l, q*r[clad]) * np.sin(l * phi[clad]) #love structure - sin() which as expected will give a roatetd version of the y-polarisation
+
+# Normalising the intensity scale for the E_x field 
+Ex_norm = np.abs(E_x) / np.max(np.abs(E_x))
+
+
+#plots
+plt.figure(figsize=(6,5))
+plt.pcolor(X*1e6, Y*1e6, np.abs(Ex_norm), shading='auto')
+plt.colorbar(label='|E_x|')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title(' |E_x| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+ 
