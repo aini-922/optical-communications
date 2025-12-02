@@ -1,32 +1,33 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.special import jv, kv  # Bessel J et K
+from scipy.special import jv, kv  # import of Bessel functions
 
+# parameters definition 
 
 n1 = 1.53
 n2 = 1.50
 a  = 4.5e-6            
-lambda_ = 1500e-9      
-
-k0 = 2*np.pi/lambda_
-V = a*k0*np.sqrt(n1**2 - n2**2)
+lambda_ = 1500e-9 #wavelength     
+k0 = 2*np.pi/lambda_ # wave vector 
+V = a*k0*np.sqrt(n1**2 - n2**2) # V-parameter for the fibre
 print("V =", V)
 
 
 m = 2  # change manually
 
 
-x = np.linspace(1e-6, 14, 2000)  # 0<pa<V
+x = np.linspace(1e-6, 14, 2000)  # define x-axis x=pa 
+#start from 1e-6 because 0<pa<V guiding condition 
 p = x / a
 qa = np.sqrt(V**2 - x**2)
 q=qa/a
 
 
-LHS = jv(m-1, x) / (x * jv(m, x))
+LHS = jv(m-1, x) / (x * jv(m, x)) # left side of the characterstic equation under weak-guiding condition (Choice to work with LP modes)
 
-RHS = kv(m-1, qa) / (qa * kv(m, qa)) 
+RHS = kv(m-1, qa) / (qa * kv(m, qa)) # right side 
 
-#plot 
+# simultaneous plot of LHS and RHS function of V-paramter 
 
 plt.figure(figsize=(7,5))
 plt.plot(x, LHS, label="LHS")
