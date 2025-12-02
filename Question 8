@@ -1,0 +1,48 @@
+#QUESTION 8
+import numpy as np
+from scipy.special import jv, kv
+from scipy.integrate import quad
+
+n1 = 1.53
+n2 = 1.50
+a = 4.5e-6
+lambda_0 = 1500e-9
+
+k0 = 2*np.pi/lambda_0  
+V = k0*a*np.sqrt(n1**2 - n2**2)
+
+p = 4.5809 / a
+beta = np.sqrt((n1*k0)**2 - p**2)
+q = np.sqrt(beta**2 - (n2*k0)**2)
+l = 0
+A = 1
+B = jv(l, p*a) / kv(l, q*a)
+
+def Ey(r): #defining the fields using the y-polarised field equations
+    if r <= a:
+        return A * jv(l, p*r)#core region 
+    else:
+        return B * kv(l, q*r)#cladding region 
+def I(r): 
+    return np.abs(Ey(r))**2 #defining the expression of intensity of the fields 
+
+def P_integrand(r):
+    return I(r) * 2*np.pi*r #integral to calculate the respective power
+
+P_core = quad(P_integrand, 0, a)[0] #[0] returns the value of the power
+
+Rmax = 10*a #setting a max radius to calculate the total power, this could be any value as long as it is very large compared to 'a'
+P_clad = quad(P_integrand, a, Rmax)[0]
+
+Gamma_num = P_core / (P_core + P_clad) #total power is P_core + P_clad
+print("Numerical Gamma =", Gamma_num)
+
+#Approximation 
+# Analytical approximation
+Gamma_approx = 1 - 1/V**2
+print("Approx Gamma =", Gamma_approx)
+
+#Percentage difference
+percent_diff = (np.abs(Gamma_num - Gamma_approx) / Gamma_num) * 100
+print("Percentage difference =", percent_diff, "%")
+
