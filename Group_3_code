@@ -1,0 +1,428 @@
+import numpy as np 
+import matplotlib.pyplot as plt 
+from scipy.special import jv, kv 
+from scipy import special, optimize
+from scipy.optimize import brentq
+from scipy.integrate import quad
+
+
+"QUESTION 3"
+n1 = 1.53
+n2 = 1.50
+a  = 4.5e-6            
+lambda_ = 1500e-9 #wavelength     
+k0 = 2*np.pi/lambda_ # wave vector 
+V = a*k0*np.sqrt(n1**2 - n2**2) # V-parameter for the fibre
+print("V =", V)
+
+
+m = 2  # change manually
+
+
+x = np.linspace(1e-6, 14, 2000)  # define x-axis x=pa 
+#start from 1e-6 because 0<pa<V guiding condition 
+p = x / a
+qa = np.sqrt(V**2 - x**2)
+q=qa/a
+
+
+LHS = jv(m-1, x) / (x * jv(m, x)) # left side of the characterstic equation under weak-guiding condition (Choice to work with LP modes)
+
+RHS = kv(m-1, qa) / (qa * kv(m, qa)) # right side 
+
+# simultaneous plot of LHS and RHS function of V-paramter 
+
+plt.figure(figsize=(7,5))
+plt.plot(x, LHS, label="LHS")
+plt.plot(x, RHS, label="RHS")
+plt.axhline(0, color="gray", lw=0.7)
+plt.xlabel("x = p·a")
+plt.title("characteristic equation")
+plt.ylim(-2, 2)
+plt.legend()
+plt.show()
+
+
+"QUESTION 5"
+n_1 = 1.53 
+n_2 = 1.5 
+a = 4.5e-6 # radius in meters
+lambda_0 = 1500e-9 # wavelength in meters
+
+k_0 = 2 * np.pi / lambda_0
+V = k_0 * a * np.sqrt(n_1**2 - n_2**2) 
+
+#Using the value calculated before to calculate the value of 'p' 
+p = 4.5809 / a
+print (p, 'is p in 1/m')
+beta = np.sqrt((n_1 * k_0)**2 - p**2) #determining the a more precise value of beta
+q = np.sqrt(beta**2 - (k_0*n_2)**2)
+print('this is', beta/k_0)
+
+# Creating the grid for the plots 
+x = np.linspace(-a, a, 200) #creating a range for x and y values with a large interval of spacing
+y = np.linspace(-a, a, 200)
+X, Y = np.meshgrid(x, y)
+
+r = np.sqrt(X**2 + Y**2) #from cartesian to polar coordinates
+phi = np.arctan2(Y, X)
+
+#Finding B by setting A = 1
+A = 1
+l = 1 # doing LP_12 mode 
+B = A * jv(l, p*a) / kv(l, q*a)
+
+# Computing the y-polarisation field components
+E_x = np.zeros_like(r, dtype=np.complex128) 
+E_y = np.zeros_like(r, dtype=np.complex128) #this creates an array which sets its values to zero acknowledging that the values will be complex and that the array size has to be the same size as the r-array
+E_z = np.zeros_like(r, dtype=np.complex128)
+
+# Core region
+core = r < a
+E_x[core] = 0 
+E_y[core] = A * jv(l, p*r[core]) * np.cos(l * phi[core]) #lobe structure
+E_z[core] = (p/beta) * (1/2) * ((jv(l+1, p*r[core]) * np.exp(1j*phi[core])) + (jv(l-1, p*r[core]) * np.exp(-1j*phi[core]))) #weak field
+
+# Cladding region
+clad = r >= a
+E_y[clad] = B * kv(l, q*r[clad]) * np.cos(l * phi[clad])#lobe structure
+E_x[clad] = 0 
+E_z[clad] = (q/beta) * (1/2) * ((kv(l+1, q*r[clad]) * np.exp(1j*phi[clad])) - (kv(l-1, q*r[clad]) * np.exp(-1j*phi[clad])))#weak field 
+
+# Normalising the intensity scales for each field to easily compare each field component
+Ex_norm = np.abs(E_x) / np.max(np.abs(E_x))
+Ey_norm = np.abs(E_y) / np.max(np.abs(E_y))
+Ez_norm = np.abs(E_z) / np.max(np.abs(E_z))
+
+
+#plots
+plt.figure(figsize=(6,5))
+plt.pcolor(X*1e6, Y*1e6, Ey_norm, shading='auto')
+plt.colorbar(label='Normalised Intensity')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title(' |E_y| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(6,5))
+plt.pcolor(X * 1e6, Y * 1e6, Ez_norm, shading='auto')
+plt.colorbar(label='Normalised Intensity')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title('|E_z| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+
+
+E_x = np.zeros_like(r, dtype=np.complex128) 
+# Core region
+core = r < a
+E_x[core] = A * jv(l, p*r[core]) * np.sin(l * phi[core]) 
+# Cladding region
+clad = r >= a
+E_x[clad] = B * kv(l, q*r[clad]) * np.sin(l * phi[clad]) #love structure - sin() which as expected will give a roatetd version of the y-polarisation
+# Normalising the intensity scale for the E_x field 
+Ex_norm = np.abs(E_x) / np.max(np.abs(E_x))
+
+#plots
+plt.figure(figsize=(6,5))
+plt.pcolor(X*1e6, Y*1e6, np.abs(Ex_norm), shading='auto')
+plt.colorbar(label='Normalised Intensity')
+plt.xlabel('x (µm)')
+plt.ylabel('y (µm)')
+plt.title(' |E_x| field')
+plt.axis('equal')
+plt.tight_layout()
+plt.show()
+
+
+"Question 6"
+# constants
+n1 = 1.53
+n2 = 1.50
+a = 4.5            # (microns)
+lambda_um = 1.5    # (microns)
+
+k0 = 2*np.pi/lambda_um
+V = k0 * a * np.sqrt(n1**2 - n2**2)
+
+print("V-number =", V)
+
+# l = 1 for LP12
+l = 1
+
+# characteristic equation def
+
+def char_eq(u):
+    w = np.sqrt(V**2 - u**2)
+    return (special.jvp(l,u)/(u*special.jv(l,u)) + 
+            special.kvp(l,w)/(w*special.kv(l,w)))
+
+# roots
+us = np.linspace(0.1, V-0.1, 3000)
+vals = [char_eq(u) for u in us]
+roots = []
+
+for i in range(len(us)-1):
+    if vals[i]*vals[i+1] < 0:
+        root = optimize.brentq(char_eq, us[i], us[i+1])
+        roots.append(root)
+
+u = roots[1]                 # we want second root for LP12
+w = np.sqrt(V**2 - u**2)
+
+print("LP12 eigenvalue u =", u)
+print("w =", w)
+
+# the field functions
+def psi(x,y):
+    r = np.sqrt(x**2 + y**2)
+    phi = np.arctan2(y,x)
+    field = np.zeros_like(r)
+
+    inside = r <= a
+
+    Jin = special.jv(l, u*r[inside]/a)
+    C = special.jv(l,u)/special.kv(l,w)
+    Kout = C * special.kv(l, w*r[~inside]/a)
+
+    field[inside] = Jin*np.cos(phi[inside])
+    field[~inside] = Kout*np.cos(phi[~inside])
+    
+    return field
+
+# pixels and grid
+N = 720
+lim = 3*a
+x = np.linspace(-lim, lim, N)
+y = np.linspace(-lim, lim, N)
+X,Y = np.meshgrid(x,y)
+
+I = psi(X,Y)**2
+I /= np.max(I)
+
+# plotting
+plt.figure(figsize=(6,6))
+plt.imshow(I, extent=[-lim,lim,-lim,lim], origin='lower')
+plt.title("LP_12 Intensity Pattern")
+plt.xlabel("x (µm)")
+plt.ylabel("y (µm)")
+plt.colorbar(label="Normalised Intensity")
+plt.show()
+
+# constants
+n1 = 1.53
+n2 = 1.50
+a = 4.5
+lambda_um = 1.5
+
+k0 = 2*np.pi/lambda_um
+V = k0 * a * np.sqrt(n1**2 - n2**2)
+
+u = 3.831706   # LP12 root 
+w = np.sqrt(V**2 - u**2)
+l = 1
+
+# polar space
+r = np.linspace(0, 3*a, 400)
+theta = np.linspace(0, 2*np.pi, 400)
+R, TH = np.meshgrid(r, theta)
+
+# field in polar coordinates
+C = special.jv(l,u)/special.kv(l,w)
+
+Psi = np.zeros_like(R)
+inside = R <= a
+
+Psi[inside] = special.jv(l, u*R[inside]/a)*np.cos(l*TH[inside])
+Psi[~inside] = C * special.kv(l, w*R[~inside]/a)*np.cos(l*TH[~inside])
+
+I = Psi**2
+I /= np.max(I)
+
+# polar plot
+plt.figure(figsize=(6,6))
+ax = plt.subplot(111, projection='polar')
+c = ax.contourf(TH, R, I, 100)
+plt.title("LP$_{12}$ Intensity in Polar Coordinates")
+plt.colorbar(c, label="Normalised Intensity")
+plt.show()
+
+
+"Question 7"
+# Fiber Parameters 
+n1 = 1.53
+n2 = 1.50
+a = 4.5e-6        
+lambda_0 = 1500e-9 
+c = 3e8   
+k0 = 2 * np.pi / lambda_0
+V_center = a * k0 * np.sqrt(n1**2 - n2**2)
+print(f"Calculated V-parameter (at {lambda_0*1e9:.0f} nm): V = {V_center:.4f}\n")
+
+# Mode LP_12
+l = 1 
+j = 2 
+
+# Characteristic Equation (LP1j modes)
+
+def characteristic_equation(x, V):
+    """
+    Here x = pa.
+    Since the arguments of the Bessel function must be real hence: qa = sqrt(V^2 - x^2) > 0.
+    """
+    qa_sq = V**2 - x**2
+    
+    # Checking if in the guided region
+    if qa_sq <= 0:
+        return np.inf 
+    
+    qa = np.sqrt(qa_sq)
+    
+    # Solving for roots
+    # LHS: J(l-1, x) / (x*J(l, x)) -> J(0, x) / (x*J(1, x))
+    # RHS: K(l-1, qa) / (qa*K(l, qa)) -> K(0, qa) / (qa*K(1, qa))
+    if x == 0:
+        return np.inf
+
+    LHS = jv(l - 1, x) / (x * jv(l, x))
+    RHS = kv(l - 1, qa) / (qa * kv(l, qa))
+    
+    return LHS - RHS
+
+
+# Calculating the effective index calculation
+
+def calculate_neff(lambda_val, x_root):
+    k0_val = 2 * np.pi / lambda_val
+    p = x_root / a
+    beta_sq = (n1 * k0_val)**2 - p**2
+    
+    # For an ideal solution, beta_sq is positive
+    if beta_sq < 0:
+        print("Beta_sq is negative, mode is beyond cutoff.")
+        return n2
+        
+    beta = np.sqrt(beta_sq)
+    
+    # Calculating effective index
+    neff = beta / k0_val
+    return neff
+
+# Root Finding for the LP_12 Mode 
+
+def find_lp12_root(lambda_val):
+    V = a * (2 * np.pi / lambda_val) * np.sqrt(n1**2 - n2**2)
+    
+    # Lp_12 lies between the first and second zeros of J1
+    # 3.8317 < x < 7.0156 
+    # Since V = 5.68 the root must lie between 3.83 and V
+    x_lower_bound = 3.8317 
+    x_upper_bound = V - 1e-4 
+
+    try:
+        root = brentq(lambda x: characteristic_equation(x, V), 3.9, 5.0)
+    except ValueError:
+        # Fallback search between cutoff and V
+        try:
+             root = brentq(lambda x: characteristic_equation(x, V), x_lower_bound + 1e-3, x_upper_bound)
+        except ValueError:
+             print(f"LP12 root not found at lambda={lambda_val*1e9:.1f} nm.")
+             return None
+
+    print(f"Found LP12 root at λ={lambda_val*1e9:.2f} nm: x = {root:.10f}")
+
+    return root
+
+# Main Dispersion Calculation 
+
+def calculate_waveguide_dispersion(lambda_0, delta_lambda=0.1e-9):
+    lambda_1 = lambda_0 - delta_lambda
+    lambda_2 = lambda_0 + delta_lambda
+    
+    wavelengths = [lambda_1, lambda_0, lambda_2]
+    neff_values = []
+    
+    for l_val in wavelengths:
+        # Finding the root (pa) for LP_12 at this wavelength
+        pa_root = find_lp12_root(l_val)
+        
+        if pa_root is None:
+            return np.nan
+        
+        # Calculating the effective index neff
+        neff = calculate_neff(l_val, pa_root)
+        neff_values.append(neff)
+        
+        print(f"λ = {l_val*1e9:.1f} nm, pa = {pa_root:.5f}, neff = {neff:.6f}")
+
+    neff_m1, neff_0, neff_p1 = neff_values
+    
+    # Calculating the second derivative [d^2(neff)/dλ^2]_W
+    d2_neff_dlambda2 = (neff_p1 - 2 * neff_0 + neff_m1) / (delta_lambda**2)
+    
+    print(f"\n[d²(neff)/dλ²]_W = {d2_neff_dlambda2:.2e} m⁻²")
+    
+    #Calculating Dw
+    Dw_s_per_m2 = - (lambda_0 / c) * d2_neff_dlambda2 # D_w = - (λ / c) * [d^2(neff)/dλ^2]_W
+    
+    # Converting to standard units: ps/(nm*km)
+    Dw_ps_per_nm_km = Dw_s_per_m2 * 1e3 
+    
+    return Dw_ps_per_nm_km
+
+# Final result
+
+Dw_result = calculate_waveguide_dispersion(lambda_0)
+
+if not np.isnan(Dw_result):
+    print(f"Waveguide Dispersion (LP_12): D_w = {Dw_result:.10f} ps/(nm·km)")
+else:
+    print("Dispersion calculation failed")
+
+"QUESTION 8"
+n1 = 1.53
+n2 = 1.50
+a = 4.5e-6
+lambda_0 = 1500e-9
+
+k0 = 2*np.pi/lambda_0  
+V = k0*a*np.sqrt(n1**2 - n2**2)
+
+p = 4.5809 / a
+beta = np.sqrt((n1*k0)**2 - p**2)
+q = np.sqrt(beta**2 - (n2*k0)**2)
+l = 0
+A = 1
+B = jv(l, p*a) / kv(l, q*a)
+
+def Ey(r): #defining the fields using the y-polarised field equations
+    if r <= a:
+        return A * jv(l, p*r)#core region 
+    else:
+        return B * kv(l, q*r)#cladding region 
+def I(r): 
+    return np.abs(Ey(r))**2 #defining the expression of intensity of the fields 
+
+def P_integrand(r):
+    return I(r) * 2*np.pi*r #integral to calculate the respective power
+
+P_core = quad(P_integrand, 0, a)[0] #[0] returns the value of the power
+
+Rmax = 10*a #setting a max radius to calculate the total power, this could be any value as long as it is very large compared to 'a'
+P_clad = quad(P_integrand, a, Rmax)[0]
+
+Gamma_num = P_core / (P_core + P_clad) #total power is P_core + P_clad
+print("Numerical Gamma =", Gamma_num)
+
+#Approximation 
+# Analytical approximation
+Gamma_approx = 1 - 1/V**2
+print("Approx Gamma =", Gamma_approx)
+
+#Percentage difference
+percent_diff = (np.abs(Gamma_num - Gamma_approx) / Gamma_num) * 100
+print("Percentage difference =", percent_diff, "%")
