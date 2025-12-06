@@ -249,7 +249,10 @@ ax = plt.subplot(111, projection='polar')
 c = ax.contourf(TH, R, I, 100)
 plt.title("LP$_{12}$ Intensity in Polar Coordinates")
 plt.colorbar(c, label="Normalised Intensity")
+ax.set_ylabel("Radius (μm)", labelpad=30) # radial label
+ax.plot(theta, np.full_like(theta, a), 'r--', linewidth=1) # core boundary
 plt.show()
+
 
 
 "Question 7"
